@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Flash Cards</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+:root {
+  --bg: #f5f5f7;
+  --card: #ffffff;
+  --accent: #007aff;
+  --sub: #8e8e93;
+  --text: #1c1c1e;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header {
+  padding: 16px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.page {
+  display: none;
+  padding: 16px;
+}
+
+.page.active {
+  display: block;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+textarea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  padding: 10px;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+button {
+  border: none;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+}
+
+.primary {
+  background: var(--accent);
+  color: white;
+}
+
+.secondary {
+  background: #e5e5ea;
+}
+
+.small {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sub {
+  color: var(--sub);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+</style>
+</head>
+
+<body>
+
+<header id="title">カード編集</header>
+
+<!-- 編集ページ -->
+<div class="row">
+    <button class="secondary" id="exportBtn">エクスポート</button>
+    <button class="secondary" id="importBtn">インポート</button>
+    <input type="file" id="fileInput" hidden>
+  </div>
+  
+<div id="editorPage" class="page active">
+
+  <div class="card">
+    <textarea id="question" placeholder="問題"></textarea>
+    <textarea id="answer" placeholder="答え"></textarea>
+    <button class="primary" id="addBtn">カード追加</button>
+  </div>
+
+  <h3>カード一覧（上が古い）</h3>
+  <div id="cardList"></div>
+
+  <button class="primary" id="startTestBtn">テスト開始</button>
+</div>
+
+<!-- テストページ -->
+<div id="testPage" class="page">
+
+  <div class="card">
+    <div class="sub">問題</div>
+    <div id="testQuestion"></div>
+  </div>
+
+  <button class="secondary" id="showAnswerBtn">答えを見る</button>
+
+  <div id="answerArea" class="card" style="display:none;">
+    <div class="sub">答え</div>
+    <div id="testAnswer"></div>
+
+    <div class="row">
+      <button class="primary" id="okBtn">答えられた</button>
+      <button class="secondary" id="ngBtn">答えられなかった</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ===== データ ===== */
+let cards = JSON.parse(localStorage.getItem("cards")) || [];
+let testIndex = 0;
+
+/* ===== 共通 ===== */
+function save() {
+  localStorage.setItem("cards", JSON.stringify(cards));
+}
+
+function showPage(id, title) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  document.getElementById("title").textContent = title;
+}
+
+/* ===== 編集 ===== */
+function renderCards() {
+  const list = document.getElementById("cardList");
+  list.innerHTML = "";
+
+  cards.forEach((card, i) => {
+    const c = document.createElement("div");
+    c.className = "card";
+
+    const q = document.createElement("div");
+    q.innerHTML = `<strong>Q:</strong> ${card.q}`;
+
+    const a = document.createElement("div");
+    a.innerHTML = `<strong>A:</strong> ${card.a}`;
+
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const up = document.createElement("button");
+    up.textContent = "↑";
+    up.className = "small";
+    up.onclick = () => moveCard(i, -1);
+
+    const down = document.createElement("button");
+    down.textContent = "↓";
+    down.className = "small";
+    down.onclick = () => moveCard(i, 1);
+
+    const del = document.createElement("button");
+    del.textContent = "削除";
+    del.className = "small";
+    del.onclick = () => deleteCard(i);
+
+    row.append(up, down, del);
+    c.append(q, a, row);
+    list.appendChild(c);
+  });
+}
+
+function moveCard(i, d) {
+  const n = i + d;
+  if (n < 0 || n >= cards.length) return;
+  [cards[i], cards[n]] = [cards[n], cards[i]];
+  save();
+  renderCards();
+}
+
+function deleteCard(i) {
+  cards.splice(i, 1);
+  save();
+  renderCards();
+}
+
+document.getElementById("addBtn").onclick = () => {
+  const q = question.value.trim();
+  const a = answer.value.trim();
+  if (!q || !a) return;
+
+  cards.push({ q, a });
+  question.value = "";
+  answer.value = "";
+  save();
+  renderCards();
+};
+
+/* ===== テスト ===== */
+function startTest() {
+  if (cards.length === 0) return;
+  testIndex = 0;
+  showPage("testPage", "テスト");
+  loadTestCard();
+}
+
+function loadTestCard() {
+  if (testIndex >= cards.length) {
+    alert("テスト終了");
+    showPage("editorPage", "カード編集");
+    return;
+  }
+  testQuestion.textContent = cards[testIndex].q;
+  testAnswer.textContent = cards[testIndex].a;
+  answerArea.style.display = "none";
+}
+
+document.getElementById("showAnswerBtn").onclick = () => {
+  answerArea.style.display = "block";
+};
+
+document.getElementById("okBtn").onclick = nextCard;
+document.getElementById("ngBtn").onclick = nextCard;
+
+function nextCard() {
+  testIndex++;
+  loadTestCard();
+}
+
+document.getElementById("startTestBtn").onclick = startTest;
+
+/* 初期描画 */
+renderCards();
+document.getElementById("exportBtn").onclick = () => {
+  const blob = new Blob(
+    [JSON.stringify(cards, null, 2)],
+    { type: "application/json" }
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "cards.json";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+document.getElementById("importBtn").onclick = () => {
+  fileInput.click();
+};
+
+fileInput.onchange = e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    cards = JSON.parse(reader.result);
+    save();
+    renderCards();
+  };
+  reader.readAsText(file);
+};
+
+</script>
+
+</body>
+</html>
